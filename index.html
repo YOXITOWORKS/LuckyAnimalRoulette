@@ -20,17 +20,15 @@
         }
         #result-panel.show { opacity: 1; }
         
-        /* 画像エリアの枠組み */
         #image-container {
             width: 85%; height: 35vh; display: flex; align-items: center; justify-content: center;
-            margin-bottom: 10px; position: relative;
+            margin-bottom: 10px; position: relative; background: rgba(255,255,255,0.05); border-radius: 10px;
         }
         #animal-image {
             max-width: 100%; max-height: 100%; border-radius: 10px;
             box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); border: 1px solid #444;
             display: none;
         }
-        /* ローディング表示の見た目 */
         #loading-text {
             font-size: 18px; color: #ffd700; font-weight: bold; display: none;
             animation: blink 1s infinite;
@@ -52,13 +50,10 @@
     <div id="result-panel">
         <div id="default-message"><p style="color: #666;">READY...</p></div>
         <div class="num-label" id="res-num"></div>
-        
-        <!-- 画像とローディング表示をまとめるエリア -->
         <div id="image-container">
             <div id="loading-text">LOADING...</div>
             <img id="animal-image" src="" alt="">
         </div>
-
         <div class="caption-jp" id="res-jp"></div>
         <div class="caption-en" id="res-en"></div>
         <a id="buy-button" href="#" target="_blank" style="display:none;">飼う(BUY)</a>
@@ -67,6 +62,7 @@
     <div id="game-container"></div>
 
     <script>
+    // --- 【データ貼り付け箇所】 ---
     const ANIMAL_DATA = {
   "1001": {
     "jp": "シュワシュワのどごし爽快なビールの毛並みを持つわんこ。なんだか幅広い世代の大人から大人気で戸惑っています🍻\nこの季節、ドイツではオクトーバーフェストが開かれています。",
@@ -4744,7 +4740,6 @@
     let reels = [];
     let isSpinning = false;
     let nextImage = new Image();
-    let imageLoaded = false;
 
     function create() {
         const scene = this;
@@ -4763,9 +4758,8 @@
             if (keys.length === 0) return;
 
             isSpinning = true;
-            imageLoaded = false;
 
-            // --- スピン開始時に前の情報をクリアし、ローディングを表示 ---
+            // 前回の表示をリセット
             document.getElementById('result-panel').classList.remove('show');
             document.getElementById('animal-image').style.display = 'none';
             document.getElementById('loading-text').style.display = 'block';
@@ -4774,26 +4768,22 @@
             const finalNum = keys[Math.floor(Math.random() * keys.length)];
             const imageId = IMAGE_MAP[finalNum];
             
+            // 画像の読み込み設定
             if (imageId) {
-                // 画像の読み込み完了を検知する設定
-                nextImage.onload = () => { imageLoaded = true; };
-                nextImage.src = "https://drive.google.com/uc?export=view&id=" + imageId;
-            } else {
-                imageLoaded = true; // 画像がない場合は即完了扱い
+                // 最も安定した直リンク用URL形式を使用
+                nextImage.src = `https://lh3.googleusercontent.com/d/${imageId}`;
             }
             
             scene.tweens.addCounter({
                 from: 0, to: 100, duration: 2000,
                 onUpdate: () => {
                     reels.forEach(r => {
-                        r.setText(Math.floor(Math.random() * 10));
-                        r.setFill('#ffd700');
+                        r.setText(Math.floor(Math.random() * 10)).setFill('#ffd700');
                     });
                 },
                 onComplete: () => {
                     for (let i = 0; i < 4; i++) {
-                        reels[i].setText(finalNum[i]);
-                        reels[i].setFill('#ffffff');
+                        reels[i].setText(finalNum[i]).setFill('#ffffff');
                     }
                     showResult(finalNum);
                     btnTxt.setText('SPIN');
@@ -4816,24 +4806,29 @@
         buyBtn.style.display = (data.url && data.url.startsWith('http')) ? 'inline-block' : 'none';
         if (buyBtn.style.display === 'inline-block') buyBtn.href = data.url;
 
-        // --- 画像の表示切り替え ---
         const imgEl = document.getElementById('animal-image');
         const loadingEl = document.getElementById('loading-text');
 
-        if (imageLoaded && nextImage.src) {
+        // 画像の読み込み完了を待って表示
+        const displayImage = () => {
             loadingEl.style.display = 'none';
             imgEl.src = nextImage.src;
             imgEl.style.display = 'block';
-        } else {
-            // まだ読み込みが終わっていない場合は、少し待ってから再試行する仕組み
-            setTimeout(() => {
-                loadingEl.style.display = 'none';
-                imgEl.src = nextImage.src;
-                imgEl.style.display = 'block';
-            }, 500);
-        }
+            document.getElementById('result-panel').classList.add('show');
+        };
 
-        document.getElementById('result-panel').classList.add('show');
+        if (nextImage.complete) {
+            displayImage();
+        } else {
+            nextImage.onload = displayImage;
+            // 読み込みに失敗した場合の保険（3秒待ってもダメなら文字だけ出す）
+            setTimeout(() => {
+                if (!imgEl.src || imgEl.style.display === 'none') {
+                    loadingEl.style.display = 'none';
+                    document.getElementById('result-panel').classList.add('show');
+                }
+            }, 3000);
+        }
     }
     </script>
 </body>
