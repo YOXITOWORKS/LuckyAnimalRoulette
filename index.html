@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LUCKY ANIMAL COLLECTION</title>
+    <title>LUCKY ANIMAL ROULETTE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     <style>
         body {
@@ -62,7 +62,6 @@
     <div id="game-container"></div>
 
     <script>
-    // --- 【データ貼り付け箇所】 ---
     const ANIMAL_DATA = {
   "1001": {
     "jp": "シュワシュワのどごし爽快なビールの毛並みを持つわんこ。なんだか幅広い世代の大人から大人気で戸惑っています🍻\nこの季節、ドイツではオクトーバーフェストが開かれています。",
@@ -4730,6 +4729,21 @@
 }
  {};
 
+    // サウンド合成用（電子音）
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(freq, type, duration, vol) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
     const config = {
         type: Phaser.AUTO, width: 360, height: 180,
         parent: 'game-container', backgroundColor: '#0d0d0d',
@@ -4753,13 +4767,12 @@
 
         spinBtn.on('pointerdown', () => {
             if (isSpinning) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             
             const keys = Object.keys(ANIMAL_DATA);
             if (keys.length === 0) return;
 
             isSpinning = true;
-
-            // 前回の表示をリセット
             document.getElementById('result-panel').classList.remove('show');
             document.getElementById('animal-image').style.display = 'none';
             document.getElementById('loading-text').style.display = 'block';
@@ -4767,24 +4780,26 @@
 
             const finalNum = keys[Math.floor(Math.random() * keys.length)];
             const imageId = IMAGE_MAP[finalNum];
-            
-            // 画像の読み込み設定
-            if (imageId) {
-                // 最も安定した直リンク用URL形式を使用
-                nextImage.src = `https://lh3.googleusercontent.com/d/${imageId}`;
-            }
+            if (imageId) nextImage.src = `https://lh3.googleusercontent.com/d/${imageId}`;
             
             scene.tweens.addCounter({
-                from: 0, to: 100, duration: 2000,
-                onUpdate: () => {
+                from: 0, to: 100, duration: 1500,
+                onUpdate: (tween) => {
                     reels.forEach(r => {
                         r.setText(Math.floor(Math.random() * 10)).setFill('#ffd700');
                     });
+                    // スピン中のピコピコ音（適度な間隔で）
+                    if (Math.random() > 0.8) playSound(880, 'square', 0.05, 0.05);
                 },
                 onComplete: () => {
                     for (let i = 0; i < 4; i++) {
                         reels[i].setText(finalNum[i]).setFill('#ffffff');
                     }
+                    // 確定時のファンファーレ音
+                    playSound(523.25, 'sine', 0.2, 0.1); // ド
+                    setTimeout(() => playSound(659.25, 'sine', 0.2, 0.1), 100); // ミ
+                    setTimeout(() => playSound(783.99, 'sine', 0.4, 0.1), 200); // ソ
+                    
                     showResult(finalNum);
                     btnTxt.setText('SPIN');
                     isSpinning = false;
@@ -4809,7 +4824,6 @@
         const imgEl = document.getElementById('animal-image');
         const loadingEl = document.getElementById('loading-text');
 
-        // 画像の読み込み完了を待って表示
         const displayImage = () => {
             loadingEl.style.display = 'none';
             imgEl.src = nextImage.src;
@@ -4821,13 +4835,12 @@
             displayImage();
         } else {
             nextImage.onload = displayImage;
-            // 読み込みに失敗した場合の保険（3秒待ってもダメなら文字だけ出す）
             setTimeout(() => {
-                if (!imgEl.src || imgEl.style.display === 'none') {
+                if (imgEl.style.display === 'none') {
                     loadingEl.style.display = 'none';
                     document.getElementById('result-panel').classList.add('show');
                 }
-            }, 3000);
+            }, 1500); 
         }
     }
     </script>
