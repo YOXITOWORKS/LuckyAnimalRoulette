@@ -19,13 +19,27 @@
             opacity: 0; transition: opacity 0.4s ease-out; overflow-y: auto;
         }
         #result-panel.show { opacity: 1; }
-        #animal-image {
-            max-width: 85%; max-height: 35vh; border-radius: 10px; margin-bottom: 10px;
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); border: 1px solid #444; display: none;
+        
+        /* 画像エリアの枠組み */
+        #image-container {
+            width: 85%; height: 35vh; display: flex; align-items: center; justify-content: center;
+            margin-bottom: 10px; position: relative;
         }
+        #animal-image {
+            max-width: 100%; max-height: 100%; border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); border: 1px solid #444;
+            display: none;
+        }
+        /* ローディング表示の見た目 */
+        #loading-text {
+            font-size: 18px; color: #ffd700; font-weight: bold; display: none;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
         .num-label { font-size: 20px; color: #ffd700; font-weight: bold; margin-bottom: 5px; }
-        .caption-jp { font-size: 20px; line-height: 1.5; margin-bottom: 8px; text-align: center; }
-        .caption-en { font-size: 16px; color: #888; font-style: italic; text-align: center; margin-bottom: 15px; }
+        .caption-jp { font-size: 20px; line-height: 1.6; margin-bottom: 12px; text-align: center; }
+        .caption-en { font-size: 15px; color: #888; font-style: italic; text-align: center; margin-bottom: 15px; }
         #buy-button {
             display: inline-block; padding: 10px 30px; background: #ffd700; color: #000;
             text-decoration: none; font-weight: bold; border-radius: 25px; font-size: 14px;
@@ -38,7 +52,13 @@
     <div id="result-panel">
         <div id="default-message"><p style="color: #666;">READY...</p></div>
         <div class="num-label" id="res-num"></div>
-        <img id="animal-image" src="" alt="">
+        
+        <!-- 画像とローディング表示をまとめるエリア -->
+        <div id="image-container">
+            <div id="loading-text">LOADING...</div>
+            <img id="animal-image" src="" alt="">
+        </div>
+
         <div class="caption-jp" id="res-jp"></div>
         <div class="caption-en" id="res-en"></div>
         <a id="buy-button" href="#" target="_blank" style="display:none;">飼う(BUY)</a>
@@ -47,7 +67,6 @@
     <div id="game-container"></div>
 
     <script>
-    // --- 【重要：データの貼り付け】 ---
     const ANIMAL_DATA = {
   "1001": {
     "jp": "シュワシュワのどごし爽快なビールの毛並みを持つわんこ。なんだか幅広い世代の大人から大人気で戸惑っています🍻\nこの季節、ドイツではオクトーバーフェストが開かれています。",
@@ -657,7 +676,7 @@
   "0161": {
     "jp": "ベーシックなオールドタイプのわんこ。可もなく不可もない絶妙なバランスがパーフェクトです♪",
     "en": "Basic old type doggy. Perfectly balanced, neither too much nor too little.",
-    "url": "https://nft.hexanft.com/nft/issu"
+    "url": "https://nft.hexanft.com/nft/issue/8ABnOVjA"
   },
   "0162": {
     "jp": "お気に入りのおもちゃを持ってきたにゃんこ。飼い主さんに貸してくれるそうです。",
@@ -4714,14 +4733,10 @@
   "0132": "12BbStKk4HkjZOvFzZMcSw4ZnOm_edqPC"
 }
  {};
-    // ------------------------------
 
     const config = {
-        type: Phaser.AUTO,
-        width: 360,
-        height: 180,
-        parent: 'game-container',
-        backgroundColor: '#0d0d0d',
+        type: Phaser.AUTO, width: 360, height: 180,
+        parent: 'game-container', backgroundColor: '#0d0d0d',
         scene: { create: create }
     };
 
@@ -4729,19 +4744,15 @@
     let reels = [];
     let isSpinning = false;
     let nextImage = new Image();
+    let imageLoaded = false;
 
     function create() {
         const scene = this;
-
-        // 背景枠
         scene.add.rectangle(180, 50, 280, 70, 0x000000).setStrokeStyle(2, 0xffd700).setOrigin(0.5);
-        
-        // リールの数字
         for (let i = 0; i < 4; i++) {
             reels.push(scene.add.text(85 + (i * 63), 50, '0', { fontSize: '65px', fill: '#555555', fontStyle: 'bold' }).setOrigin(0.5));
         }
 
-        // SPINボタン
         const spinBtn = scene.add.rectangle(180, 135, 180, 45, 0xff4500).setInteractive({ useHandCursor: true });
         const btnTxt = scene.add.text(180, 135, 'SPIN', { fontSize: '20px', fill: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
 
@@ -4749,37 +4760,40 @@
             if (isSpinning) return;
             
             const keys = Object.keys(ANIMAL_DATA);
-            if (keys.length === 0) {
-                alert("データが見つかりません。貼り付けを確認してください。");
-                return;
-            }
+            if (keys.length === 0) return;
 
             isSpinning = true;
+            imageLoaded = false;
+
+            // --- スピン開始時に前の情報をクリアし、ローディングを表示 ---
             document.getElementById('result-panel').classList.remove('show');
+            document.getElementById('animal-image').style.display = 'none';
+            document.getElementById('loading-text').style.display = 'block';
             btnTxt.setText('ROLLING...');
 
-            // 次の正解を決定
             const finalNum = keys[Math.floor(Math.random() * keys.length)];
             const imageId = IMAGE_MAP[finalNum];
+            
             if (imageId) {
-                // 画像のプリロード
-                nextImage.src = "https://lh3.googleusercontent.com/d/" + imageId;
+                // 画像の読み込み完了を検知する設定
+                nextImage.onload = () => { imageLoaded = true; };
+                nextImage.src = "https://drive.google.com/uc?export=view&id=" + imageId;
+            } else {
+                imageLoaded = true; // 画像がない場合は即完了扱い
             }
             
             scene.tweens.addCounter({
-                from: 0,
-                to: 100,
-                duration: 2000,
+                from: 0, to: 100, duration: 2000,
                 onUpdate: () => {
                     reels.forEach(r => {
                         r.setText(Math.floor(Math.random() * 10));
-                        r.setFill('#ffd700'); // ここを修正しました
+                        r.setFill('#ffd700');
                     });
                 },
                 onComplete: () => {
                     for (let i = 0; i < 4; i++) {
                         reels[i].setText(finalNum[i]);
-                        reels[i].setFill('#ffffff'); // ここを修正しました
+                        reels[i].setFill('#ffffff');
                     }
                     showResult(finalNum);
                     btnTxt.setText('SPIN');
@@ -4799,18 +4813,26 @@
         document.getElementById('res-en').innerText = data.en || "";
         
         const buyBtn = document.getElementById('buy-button');
-        if (data.url && data.url.startsWith('http')) {
-            buyBtn.href = data.url;
-            buyBtn.style.display = 'inline-block';
-        } else {
-            buyBtn.style.display = 'none';
-        }
+        buyBtn.style.display = (data.url && data.url.startsWith('http')) ? 'inline-block' : 'none';
+        if (buyBtn.style.display === 'inline-block') buyBtn.href = data.url;
 
+        // --- 画像の表示切り替え ---
         const imgEl = document.getElementById('animal-image');
-        if (nextImage.src) {
+        const loadingEl = document.getElementById('loading-text');
+
+        if (imageLoaded && nextImage.src) {
+            loadingEl.style.display = 'none';
             imgEl.src = nextImage.src;
             imgEl.style.display = 'block';
+        } else {
+            // まだ読み込みが終わっていない場合は、少し待ってから再試行する仕組み
+            setTimeout(() => {
+                loadingEl.style.display = 'none';
+                imgEl.src = nextImage.src;
+                imgEl.style.display = 'block';
+            }, 500);
         }
+
         document.getElementById('result-panel').classList.add('show');
     }
     </script>
